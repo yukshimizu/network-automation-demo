@@ -1,0 +1,7 @@
+conf t
+ vlan 10
+ vlan 20
+ vlan 100
+end
+write mem
+

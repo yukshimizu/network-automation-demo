@@ -1,0 +1,24 @@
+all:
+  children:
+    network:
+      children:
+        lan:
+          children:
+            access:
+              hosts:
+                access01:
+                  ansible_host: 172.20.1.18
+                access02:
+                  ansible_host: 172.20.1.19
+            core:
+              hosts:
+                core01:
+                  ansible_host: 172.20.1.20
+                core02:
+                  ansible_host: 172.20.1.21
+        wan:
+          hosts:
+            wan01:
+              ansible_host: 172.20.1.22
+            wan02:
+              ansible_host: 172.20.1.23

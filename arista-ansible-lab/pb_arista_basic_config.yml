@@ -1,0 +1,40 @@
+---
+- name: Configure Basic Configuration on Arista Fabric
+  hosts: arista
+  tasks:
+    - name: Conifgure Basic System config
+      arista.eos.eos_system:
+        hostname: " {{ global.site|lower }}-{{ inventory_hostname }}"
+        name_servers: "{{ global.dns }}"
+        state: present
+      tags: system
+
+    - name: Configure Users
+      arista.eos.eos_user:
+        name: "{{ item.username }}"
+        role: "{{ item.role | default('network-admin') }}"
+        privilege: "{{ item.privilege | default(15) }}"
+        configured_password: "{{ item.password }}"
+        state: present
+      loop: "{{ global.users }}"
+      tags: system
+
+    - name: Configure the Physical Interfaces
+      arista.eos.eos_interfaces:
+        config:
+          - name: "{{ item.port }}"
+            enabled: true
+            description: '"{{ global.site }} | Rpeer:{{ item.peer }} | Rport:{{ item.pport }}"'
+        state: merged
+      with_items: "{{ p2p_ip[inventory_hostname] }}"
+      tags: intf
+
+    - name: Configure IP Addresses
+      arista.eos.eos_l3_interfaces:
+        config:
+          - name: "{{ item.port }}"
+            ipv4:
+              - address: "{{ item.ip }}/{{ global.p2p_prefix }}"
+        state: merged
+      with_items: "{{ p2p_ip[inventory_hostname] }}"
+      tags: intf

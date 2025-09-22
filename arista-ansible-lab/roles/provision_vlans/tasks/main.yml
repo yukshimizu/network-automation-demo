@@ -1,0 +1,47 @@
+---
+- name: Deploy Vlans on DC Fabric
+  arista.eos.eos_vlans:
+    config:
+      - name: "VLAN_{{ vlan.id }}_{{ vlan.description }}"
+        vlan_id: "{{ vlan.id }}"
+    state: merged
+  loop: "{{ vlan_data[inventory_hostname] }}"
+  loop_control:
+    loop_var: vlan
+  tags: vlans
+
+- name: Merge Provided Configuration with Device Configuration
+  arista.eos.eos_l2_interfaces:
+    config:
+      - name: "{{ vlan.1 }}"
+        mode: access
+        access:
+          vlan: "{{ vlan.0.id }}"
+    state: merged
+  loop: "{{ (vlan_data[inventory_hostname] | default([])) | subelements('ports', skip_missing=True) }}"
+  loop_control:
+    loop_var: vlan
+  tags: vlans
+
+- name: Create VXLAN Configs Folder
+  ansible.builtin.file:
+    path: "{{ config_dir }}"
+    state: directory
+    mode: '0755'
+  run_once: true
+  delegate_to: localhost
+  tags: vxlan
+
+- name: Create VXLAN Configuration
+  ansible.builtin.template:
+    src: "{{ ansible_network_os }}/vxlan.j2"
+    dest: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+    mode: '0644'
+  delegate_to: localhost
+  tags: vxlan
+
+- name: Deploy Configuration
+  arista.eos.eos_config:
+    src: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+    save_when: changed
+  tags: vxlan

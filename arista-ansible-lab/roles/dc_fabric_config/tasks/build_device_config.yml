@@ -1,0 +1,28 @@
+---
+- name: System Configuration
+  ansible.builtin.template:
+    src: "{{ ansible_network_os }}/mgmt.j2"
+    dest: "{{ build_dir }}/00_mgmt.cfg"
+    mode: '0644'
+  tags: mgmt
+
+- name: Interface Configuration
+  ansible.builtin.template:
+    src: "{{ ansible_network_os }}/intf.j2"
+    dest: "{{ build_dir }}/01_intf.cfg"
+    mode: '0644'
+  tags: intf
+
+- name: Underlay BGP Configuration
+  ansible.builtin.template:
+    src: "{{ ansible_network_os }}/underlay_bgp.j2"
+    dest: "{{ build_dir }}/03_bgp.cfg"
+    mode: '0644'
+  tags: bgp
+
+- name: Overlay BGP EVPN Configuration
+  ansible.builtin.template:
+    src: "{{ ansible_network_os }}/overlay_bgp.j2"
+    dest: "{{ build_dir }}/04_evpn.cfg"
+    mode: '0644'
+  tags: bgp

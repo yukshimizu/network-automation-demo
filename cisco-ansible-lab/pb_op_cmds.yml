@@ -1,0 +1,55 @@
+---
+- name: "Play 1: Execute Operational Commands"
+  hosts: network
+  vars:
+    config_folder: "configs"
+    op_folder: "op_data"
+    op_cmds:
+      - show ip ospf neighbor
+      - show ip route
+  tasks:
+    - name: "P1T1: Build Directories to Store Data"
+      run_once: true
+      delegate_to: localhost
+      block:
+        - name: "Create folder to store Device config"
+          ansible.builtin.file:
+            path: "{{ config_folder }}"
+            state: directory
+            mode: '0755'
+        - name: "Create Folder to store operational commands"
+          ansible.builtin.file:
+            path: "{{ op_folder }}"
+            state: directory
+            mode: '0755'
+
+    - name: "P1T2: Get Running configs from Devices"
+      cisco.ios.ios_command:
+        commands: show running-config
+      register: show_run
+
+    - name: "P1T3: Save Running Config per Device"
+      ansible.builtin.copy:
+        content: "{{ show_run.stdout[0] }}"
+        dest: "{{ config_folder }}/{{ inventory_hostname }}.cfg"
+        mode: '0644'
+
+    - name: "P1T4: Create Folder per Device"
+      ansible.builtin.file:
+        path: "{{ op_folder }}/{{ inventory_hostname }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: "P1T5: Get Operational Data from Devices"
+      cisco.ios.ios_command:
+        commands: "{{ item }}"
+      register: op_output
+      loop: "{{ op_cmds }}"
+
+    - name: "P1T6: Save output per each node"
+      ansible.builtin.copy:
+        content: "{{ item.stdout[0] + '\n' }}"
+        dest: "{{ op_folder }}/{{ inventory_hostname }}/{{ item.item | replace(' ', '_') }}.txt"
+        mode: '0644'
+      loop: "{{ op_output.results }}"

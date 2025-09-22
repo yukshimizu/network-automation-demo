@@ -1,0 +1,27 @@
+---
+- name: Build Required Directories
+  ansible.builtin.import_tasks: build_config_dir.yml
+  tags: [mgmt, intf, bgp, vxlan]
+
+- name: Build Device Configuration
+  ansible.builtin.import_tasks: build_device_config.yml
+
+- name: Remove Old Assembled Config
+  ansible.builtin.file:
+    path: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+    state: absent
+  tags: [mgmt, intf, bgp, vxlan]
+
+- name: Build Final Device Configuration
+  ansible.builtin.assemble:
+    src: "{{ build_dir }}"
+    dest: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+    mode: '0644'
+  tags: [mgmt, intf, bgp, vxlan]
+
+- name: Remove Build Directory
+  ansible.builtin.file:
+    path: "{{ tmp_dir }}"
+    state: absent
+  run_once: true
+  tags: [mgmt, intf, bgp, vxlan]

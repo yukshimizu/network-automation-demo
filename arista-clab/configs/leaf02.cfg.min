@@ -1,0 +1,39 @@
+! boot system flash:/vEOS-lab.swi
+!
+hostname dc1-leaf02
+!
+snmp-server enable traps
+!
+spanning-tree mode none
+!
+no aaa root
+!
+aaa authorization exec default local
+!
+username ansible privilege 15 role network-admin secret ansible123
+!
+no service interface inactive port-id allocation disabled
+!
+vrf instance MGMT
+!
+interface Management0
+   vrf MGMT
+   ip address 172.20.1.42/28
+!
+ip route vrf MGMT 10.8.0.0/24 172.20.1.33
+ip route vrf MGMT 172.20.1.0/24 172.20.1.33
+ip route vrf MGMT 192.168.0.0/24 172.20.1.33
+!
+ip routing
+ip routing vrf MGMT
+!
+!
+!
+management console
+   idle-timeout 300
+!
+management ssh
+   idle-timeout 300
+   authentication mode password
+   login timeout 300
+!

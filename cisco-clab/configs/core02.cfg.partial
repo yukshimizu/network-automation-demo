@@ -1,0 +1,13 @@
+!
+version 17.16
+!
+hostname core02
+!
+!
+!
+!
+!
+enable password admin123
+username lab password 0 lab123
+!
+end

@@ -1,0 +1,119 @@
+name: dc1-evpn
+
+mgmt:
+  network: clab
+  ipv4-subnet: 172.20.1.32/28   # optional: aligns with your Mgmt1 /28 block
+
+topology:
+  nodes:
+    spine01:
+      kind: arista_ceos
+      image: ceos:4.34.0F
+      startup-config: configs/spine01.cfg.min
+      env:
+        SKIP_ZEROTOUCH_BARRIER_IN_SYSDB: "1"
+        CEOS: "1"
+        EOS_PLATFORM: "ceoslab"
+      mgmt-ipv4: 172.20.1.35
+
+    spine02:
+      kind: arista_ceos
+      image: ceos:4.34.0F
+      startup-config: configs/spine02.cfg.min
+      env:
+        SKIP_ZEROTOUCH_BARRIER_IN_SYSDB: "1"
+        CEOS: "1"
+        EOS_PLATFORM: "ceoslab"
+      mgmt-ipv4: 172.20.1.36
+
+    leaf01:
+      kind: arista_ceos
+      image: ceos:4.34.0F
+      startup-config: configs/leaf01.cfg.min
+      env:
+        SKIP_ZEROTOUCH_BARRIER_IN_SYSDB: "1"
+        CEOS: "1"
+        EOS_PLATFORM: "ceoslab"
+      mgmt-ipv4: 172.20.1.41
+
+    leaf02:
+      kind: arista_ceos
+      image: ceos:4.34.0F
+      startup-config: configs/leaf02.cfg.min
+      env:
+        SKIP_ZEROTOUCH_BARRIER_IN_SYSDB: "1"
+        CEOS: "1"
+        EOS_PLATFORM: "ceoslab"
+      mgmt-ipv4: 172.20.1.42
+
+    leaf03:
+      kind: arista_ceos
+      image: ceos:4.34.0F
+      startup-config: configs/leaf03.cfg.min
+      env:
+        SKIP_ZEROTOUCH_BARRIER_IN_SYSDB: "1"
+        CEOS: "1"
+        EOS_PLATFORM: "ceoslab"
+      mgmt-ipv4: 172.20.1.43
+
+    leaf04:
+      kind: arista_ceos
+      image: ceos:4.34.0F
+      startup-config: configs/leaf04.cfg.min
+      env:
+        SKIP_ZEROTOUCH_BARRIER_IN_SYSDB: "1"
+        CEOS: "1"
+        EOS_PLATFORM: "ceoslab"
+      mgmt-ipv4: 172.20.1.44
+
+    web01:
+      kind: linux
+      image: wbitt/network-multitool:alpine-extra
+      mgmt-ipv4: 172.20.1.37
+      exec:
+        - ip addr add 192.168.10.11/24 dev eth1
+
+    web02:
+      kind: linux
+      image: wbitt/network-multitool:alpine-extra
+      mgmt-ipv4: 172.20.1.38
+      exec:
+        - ip addr add 192.168.10.12/24 dev eth1
+
+    db01:
+      kind: linux
+      image: wbitt/network-multitool:alpine-extra
+      mgmt-ipv4: 172.20.1.39
+      exec:
+        - ip addr add 192.168.20.11/24 dev eth1
+
+    db02:
+      kind: linux
+      image: wbitt/network-multitool:alpine-extra
+      mgmt-ipv4: 172.20.1.40
+      exec:
+        - ip addr add 192.168.20.12/24 dev eth1
+
+  links:
+    # spine01 <-> leaves (become Ethernet1..4 on spine, Ethernet8 on leafs)
+    - endpoints: ["spine01:eth1", "leaf01:eth8"]
+    - endpoints: ["spine01:eth2", "leaf02:eth8"]
+    - endpoints: ["spine01:eth3", "leaf03:eth8"]
+    - endpoints: ["spine01:eth4", "leaf04:eth8"]
+
+    # spine02 <-> leaves (become Ethernet1..4 on spine, Ethernet9 on leafs)
+    - endpoints: ["spine02:eth1", "leaf01:eth9"]
+    - endpoints: ["spine02:eth2", "leaf02:eth9"]
+    - endpoints: ["spine02:eth3", "leaf03:eth9"]
+    - endpoints: ["spine02:eth4", "leaf04:eth9"]
+
+    # spine01 <-> spine02 (Ethernet6 on both)
+    - endpoints: ["spine01:eth6", "spine02:eth6"]
+
+    # vlan10
+    - endpoints: ["web01:eth1", "leaf03:eth1"]
+    - endpoints: ["web02:eth1", "leaf04:eth1"]
+
+    # vlan20
+    - endpoints: ["db01:eth1", "leaf03:eth2"]
+    - endpoints: ["db02:eth1", "leaf04:eth2"]

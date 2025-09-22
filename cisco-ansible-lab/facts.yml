@@ -1,0 +1,20 @@
+# BEGIN ANSIBLE MANAGED BLOCK
+device_facts:
+  core01:
+    serial_number: 3
+    ios_version: 17.16.1a
+  core02:
+    serial_number: 4
+    ios_version: 17.16.1a
+  wan01:
+    serial_number: 7
+    ios_version: 17.16.1a
+  wan02:
+    serial_number: 8
+    ios_version: 17.16.1a
+all_loopbacks:
+  - 10.100.1.1
+  - 10.100.1.2
+  - 10.100.1.3
+  - 10.100.1.4
+# END ANSIBLE MANAGED BLOCK

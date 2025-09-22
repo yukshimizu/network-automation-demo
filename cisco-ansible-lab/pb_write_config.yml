@@ -1,0 +1,7 @@
+---
+- name: Save Running Config
+  hosts: network
+  tasks:
+    - name: Save Running to Startup
+      cisco.ios.ios_config:
+        save_when: always

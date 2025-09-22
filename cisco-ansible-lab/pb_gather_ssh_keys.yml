@@ -1,0 +1,35 @@
+---
+- name: "Play1: Gather Public SSH keys"
+  hosts: all
+  tags: collect
+  tasks:
+    - name: Capture SSH Public Keys for Remote Nodes
+      ansible.builtin.command: ssh-keyscan {{ ansible_host }}
+      delegate_to: localhost
+      register: ssh_keys
+      changed_when: false
+
+    # - ansible.builtin.debug: var=ssh_keys
+    #   delegate_to: localhost
+
+- name: "Play2: Record Keys in Known Hosts file"
+  hosts: localhost
+  vars:
+    # hosts_file: "~/.ssh/known_hosts"
+    hosts_file: "./temp_ssh.txt"
+  tasks:
+    - name: Create know hosts file
+      ansible.builtin.file:
+        path: "{{ hosts_file }}"
+        mode: '0644'
+        state: touch
+
+    - name: Populate the known_hosts file
+      ansible.builtin.blockinfile:
+        block: |
+          {% for host in groups['all'] if  hostvars[host].ssh_keys.stdout != ''  %}
+          {{ hostvars[host].ssh_keys.stdout}}
+          {% endfor %}
+        path: "{{ hosts_file }}"
+        create: true
+        mode: '0644'

@@ -1,0 +1,281 @@
+---
+- name: "PLAY 1: Configure All Lan Switches"
+  hosts: lan
+  tags: lan
+  connection: network_cli
+  become: true
+  tasks:
+    - name: "P1T1: Configure Hostname and Domain Name"
+      cisco.ios.ios_system:
+        hostname: "{{ inventory_hostname }}"
+        domain_name: "{{ domain_name }}"
+        lookup_enabled: false
+        name_servers: "{{ name_servers }}"
+
+    - name: "P1T2: Configure NTP"
+      cisco.ios.ios_ntp_global:
+        config:
+          servers:
+            - server: "{{ ntp_server }}"
+          logging: true
+        state: merged
+
+    - name: "P1T3: Configure Managment Static Routes"
+      cisco.ios.ios_static_routes:
+        config:
+          - address_families:
+              - afi: ipv4
+                routes:
+                  - dest: "{{ item.prefix }}"
+                    next_hops:
+                      - forward_router_address: "{{ item.next_hop }}"
+      loop: "{{ mgmt_static_routes }}"
+      register: ios_static_routes
+
+    - name: "P1T4: Configure Interfaces"
+      cisco.ios.ios_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            description: "{{ item.description }}"
+            duplex: "{{ intf_duplex }}"
+            mtu: "{{ intf_mtu }}"
+            enabled: true
+        state: merged
+      loop: "{{ interfaces[inventory_hostname] }}"
+      register: ios_intf
+
+    - name: "P1T5: Create L2 VLANs"
+      cisco.ios.ios_vlans:
+        config:
+          - vlan_id: "{{ item.vlan_id }}"
+            name: "{{ item.name }}"
+            state: active
+            shutdown: disabled
+      loop: "{{ vlans }}"
+      tags: vlan
+
+    - name: "P1T6: Enable dot1q Trunks"
+      cisco.ios.ios_config:
+        lines:
+          - switchport trunk encapsulation dot1q
+        parents: interface {{ item.name }}
+      loop: "{{ interfaces[inventory_hostname] | selectattr('mode', 'equalto', 'trunk') | list }}"
+      tags: dot1q
+
+    - name: "P1T7: Configure L2 Trunks"
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            mode: "{{ item.mode }}"
+            trunk:
+              allowed_vlans: "{{ vlans | map(attribute='vlan_id') | join(',') }}"
+              encapsulation: dot1q
+        state: merged
+      loop: "{{ interfaces[inventory_hostname] | selectattr('mode', 'equalto', 'trunk') | list }}"
+
+    - name: "P1T8: Configure Access Ports"
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            mode: "{{ item.mode }}"
+            access:
+              vlan: "{{ item.vlan }}"
+        state: merged
+      loop: "{{ interfaces[inventory_hostname] | selectattr('mode', 'equalto', 'access') | list }}"
+
+
+- name: "PLAY 2: Configure Core Switches"
+  hosts: core
+  tags: l3_core
+  tasks:
+
+    - name: "P2T1: Create L2 Core VLANs"
+      cisco.ios.ios_vlans:
+        config:
+          - vlan_id: "{{ item.vlan_id }}"
+            name: "{{ item.name }}"
+            state: active
+            shutdown: disabled
+      loop: "{{ core_vlans }}"
+      tags: vlan
+
+    - name: "P2T2: Allow Core VLANs on Core Trunk"
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: "{{ item.interface }}"
+            mode: trunk
+            trunk:
+              allowed_vlans: "{{ (vlans + core_vlans) |
+                                  map(attribute='vlan_id') |
+                                  join(',') }}"
+              encapsulation: dot1q
+        state: merged
+      loop: "{{ core_vlans }}"
+
+    - name: "P2T3: Adjust VLAN Priority"
+      cisco.ios.ios_config:
+        lines:
+          - spanning-tree vlan {{ item.vlan_id }} priority {{ hst_vlan_priority }}
+      loop: "{{ (vlans + core_vlans) }}"
+      tags: spt
+
+    - name: "P2T4: Create L3 VLAN Interfaces"
+      cisco.ios.ios_l3_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            ipv4:
+              - address: "{{ item.ipv4 | ansible.utils.ipaddr(hst_svi_id) }}"
+        state: merged
+      loop: "{{ svi_interfaces }}"
+      tags: l3_svi
+
+    - name: "P2T5: Enable the VLAN Interfaces"
+      cisco.ios.ios_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            enabled: true
+        state: merged
+      loop: "{{ svi_interfaces }}"
+
+    - name: "P2T6: Create VRRP Configs"
+      cisco.ios.ios_config:
+        parents: interface {{ item.name }}
+        lines:
+          - vrrp {{ item.name.split('Vlan')[1] }} priority {{ hst_vrrp_priority }}
+          - vrrp {{ item.name.split('Vlan')[1] }} ip {{ item.ipv4 | ansible.utils.ipv4(254) | ansible.utils.ipaddr('address') }}
+      loop: "{{ svi_interfaces | selectattr('vrrp', 'equalto', true) | list }}"
+
+    - name: "P2T7: Create WAN Links"
+      cisco.ios.ios_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            description: "{{ item.description }}"
+            duplex: "{{ intf_duplex }}"
+            mtu: "{{ intf_mtu }}"
+            enabled: true
+        state: merged
+      when: "'Loopback0' not in item.name"
+      loop: "{{ core_l3_links[inventory_hostname] }}"
+
+    - name: "P2T8: Make Wan Interfaces as L3 Interfaces"
+      cisco.ios.ios_config:
+        parents: interface {{ item.name }}
+        lines:
+          - no switchport
+        save_when: changed
+      loop: "{{ core_l3_links[inventory_hostname] }}"
+      when: "'Loopback0' not in item.name"
+
+    - name: "P2T9: Configure IP Address on WAN Links"
+      cisco.ios.ios_l3_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            ipv4:
+              - address: "{{ item.ipv4 | ansible.utils.ipaddr(1) }}"
+        state: merged
+      loop: "{{ core_l3_links[inventory_hostname] }}"
+      when: "'Loopback0' not in item.name"
+
+    - name: "P2T10: Configure IP Address on Loopback"
+      cisco.ios.ios_l3_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            ipv4:
+              - address: "{{ item.ipv4 }}"
+        state: merged
+      loop: "{{ core_l3_links[inventory_hostname] }}"
+      when: "'Loopback0' in item.name"
+      tags: lo0
+
+    - name: "P2T11: Configure OSPF"
+      cisco.ios.ios_config:
+        parents: router ospf {{ ospf_process }}
+        lines:
+          - router-id {{ loopback_prefix | ansible.utils.ipv4(hst_router_id) | ansible.utils.ipaddr('address') }}
+
+    - name: "P2T12: Configure OSPF On Interfaces"
+      cisco.ios.ios_config:
+        parents: interface {{ item.name }}
+        lines:
+          - ip ospf {{ ospf_process }} area {{ ospf_area }}
+          - ip ospf network point-to-point
+          - ip ospf cost {{ item.ospf_metric | default(ospf_metric) }}
+      loop: "{{ (svi_interfaces + core_l3_links[inventory_hostname]) | selectattr('ospf') | list }}"
+
+    - name: "P2T13: Configure OSPF Passive Interfaces"
+      cisco.ios.ios_config:
+        parents: router ospf {{ ospf_process }}
+        lines: passive-interface {{ item.name }}
+      loop: "{{ (svi_interfaces + core_l3_links[inventory_hostname]) | selectattr('ospf', 'equalto', 'passive') | list }}"
+
+
+- name: "PLAY 3: Configure WAN Routers"
+  hosts: wan
+  tags: wan
+  tasks:
+    - name: "P3T1: Configure System parameters"
+      cisco.ios.ios_system:
+        hostname: "{{ inventory_hostname }}"
+        domain_name: "{{ domain_name }}"
+        lookup_enabled: false
+        name_servers: "{{ name_servers }}"
+
+    - name: "P3T2: Configure NTP"
+      cisco.ios.ios_ntp_global:
+        config:
+          servers:
+            - server: "{{ ntp_server }}"
+          logging: true
+        state: merged
+
+    - name: "P3T3: Configure Managment Static Routes"
+      cisco.ios.ios_static_routes:
+        config:
+          - address_families:
+              - afi: ipv4
+                routes:
+                  - dest: "{{ item.prefix }}"
+                    next_hops:
+                      - forward_router_address: "{{ item.next_hop }}"
+      loop: "{{ mgmt_static_routes }}"
+
+    - name: "P3T4: Configure All Interfaces"
+      cisco.ios.ios_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            description: "{{ item.description | default('') }}"
+            mtu: "{{ intf_mtu }}"
+            enabled: true
+        state: merged
+      loop: "{{ wan_l3_links[inventory_hostname] }}"
+
+    - name: "P3T5: Configure Interface IP Addresses"
+      cisco.ios.ios_l3_interfaces:
+        config:
+          - name: "{{ item.name }}"
+            ipv4:
+              - address: "{{ item.ipv4 }}"
+      loop: "{{ wan_l3_links[inventory_hostname] }}"
+
+
+    - name: "P3T6: Configure OSPF"
+      cisco.ios.ios_config:
+        parents: router ospf {{ ospf_process }}
+        lines:
+          - router-id {{ loopback_prefix | ansible.utils.ipv4(hst_router_id) | ansible.utils.ipaddr('address') }}
+
+    - name: "P3T7: Configure OSPF On Interfaces"
+      cisco.ios.ios_config:
+        parents: interface {{ item.name }}
+        lines:
+          - ip ospf {{ ospf_process }} area {{ ospf_area }}
+          - ip ospf network point-to-point
+          - ip ospf cost {{ item.ospf_metric | default(ospf_metric) }}
+      loop: "{{ wan_l3_links[inventory_hostname] | selectattr('ospf') | list }}"
+
+    - name: "P3T8: Configure OSPF Passive Interfaces"
+      cisco.ios.ios_config:
+        parents: router ospf {{ ospf_process }}
+        lines: passive-interface {{ item.name }}
+        save_when: changed
+      loop: "{{ wan_l3_links[inventory_hostname] | selectattr('ospf', 'equalto', 'passive') | list }}"

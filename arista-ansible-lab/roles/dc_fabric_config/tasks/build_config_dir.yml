@@ -1,0 +1,17 @@
+---
+- name: Create Config Directory
+  ansible.builtin.file:
+    path: "{{ config_dir }}"
+    state: directory
+    mode: '0755'
+  run_once: true
+
+- name: Create Temp Directory per Node
+  ansible.builtin.file:
+    path: "{{ tmp_dir }}/{{ inventory_hostname }}"
+    state: directory
+    mode: '0755'
+
+- name: SET FACT >> Build Directory
+  ansible.builtin.set_fact:
+    build_dir: "{{ tmp_dir }}/{{ inventory_hostname }}"

@@ -1,0 +1,21 @@
+---
+- name: Backup Arista DC Fabric Configurations
+  hosts: arista
+  vars:
+    config_folder: "backup"
+
+  tasks:
+    - name: Create folder to store Device Config
+      ansible.builtin.file:
+        path: "{{ config_folder }}"
+        state: directory
+        mode: '0755'
+      run_once: true
+      delegate_to: localhost
+
+    - name: Collect Arista Running Config
+      arista.eos.eos_config:
+        backup: true
+        backup_options:
+          filename: "{{ inventory_hostname }}.cfg"
+          dir_path: "{{ config_folder }}"

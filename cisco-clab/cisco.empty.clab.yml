@@ -1,0 +1,79 @@
+name: cisco-campus
+
+mgmt:
+  network: clab-cisco
+  ipv4-subnet: 172.20.1.16/28
+
+topology:
+  nodes:
+    access01:
+      kind: cisco_iol
+      image: vrnetlab/cisco_iol:L2-17.16.01a
+      type: l2
+      startup-config: configs/access01.cfg.partial
+      mgmt-ipv4: 172.20.1.18
+    access02:
+      kind: cisco_iol
+      image: vrnetlab/cisco_iol:L2-17.16.01a
+      type: l2
+      startup-config: configs/access02.cfg.partial
+      mgmt-ipv4: 172.20.1.19
+    core01:
+      kind: cisco_iol
+      image: vrnetlab/cisco_iol:L2-17.16.01a
+      type: l2
+      startup-config: configs/core01.cfg.partial
+      mgmt-ipv4: 172.20.1.20
+    core02:
+      kind: cisco_iol
+      image: vrnetlab/cisco_iol:L2-17.16.01a
+      type: l2
+      startup-config: configs/core02.cfg.partial
+      mgmt-ipv4: 172.20.1.21
+    wan01:
+      kind: cisco_iol
+      image: vrnetlab/cisco_iol:17.16.01a
+      startup-config: configs/wan01.cfg.partial
+      mgmt-ipv4: 172.20.1.22
+    wan02:
+      kind: cisco_iol
+      image: vrnetlab/cisco_iol:17.16.01a
+      startup-config: configs/wan02.cfg.partial
+      mgmt-ipv4: 172.20.1.23
+    data01:
+      kind: linux
+      image: wbitt/network-multitool:alpine-extra
+      mgmt-ipv4: 172.20.1.24
+      exec:
+        - ip addr add 10.1.10.101/24 dev eth1
+    voice01:
+      kind: linux
+      image: wbitt/network-multitool:alpine-extra
+      mgmt-ipv4: 172.20.1.25
+      exec:
+        - ip addr add 10.1.20.101/24 dev eth1
+
+  links:
+    # WAN interconnect (for iBGP/HSRP, etc.)
+    - endpoints: ["wan01:eth2", "wan02:eth2"]
+
+    # WAN to Core
+    - endpoints: ["wan01:eth1", "core01:eth4"]
+    - endpoints: ["wan02:eth1", "core02:eth4"]
+
+    # Core interconnect
+    - endpoints: ["core01:eth3", "core02:eth3"]
+
+    # Core to Access
+    - endpoints: ["core01:eth1", "access01:eth1"]
+    - endpoints: ["core02:eth1", "access01:eth2"]
+    - endpoints: ["core01:eth2", "access02:eth1"]
+    - endpoints: ["core02:eth2", "access02:eth2"]
+
+    # vlan10
+    - endpoints: ["data01:eth1", "access01:eth3"]
+    # vlan testing purpose
+    - endpoints: ["access01:eth4", "access01:eth5"]
+    - endpoints: ["access02:eth5", "access02:eth6"]
+    # vlan20
+    - endpoints: ["voice01:eth1", "access02:eth3"]
